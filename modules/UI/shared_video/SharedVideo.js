@@ -31,7 +31,7 @@ export const SHARED_VIDEO_CONTAINER_TYPE = 'sharedvideo';
  * Example shared video link.
  * @type {string}
  */
-const defaultSharedVideoLink = 'https://www.youtube.com/watch?v=xNXN7CZk8X0';
+const defaultSharedVideoLink = 'YouTube video url OR Twitch channel name';
 const updateInterval = 5000; // milliseconds
 
 /**
@@ -136,6 +136,9 @@ export default class SharedVideoManager {
      * @param attributes
      */
     onSharedVideoStart(id, url, attributes) {
+        const self = this;
+        const youtubeVideoId = getYoutubeLink(url);
+
         if (this.isSharedVideoShown) {
             return;
         }
@@ -154,6 +157,34 @@ export default class SharedVideoManager {
         this.localAudioMutedListener = this.onLocalAudioMuted.bind(this);
         this.emitter.on(UIEvents.AUDIO_MUTED, this.localAudioMutedListener);
 
+        if (!youtubeVideoId) {
+            const iframe = document.createElement('iframe');
+            iframe.src = "https://player.twitch.tv/?channel=" + this.url;
+            iframe.allowFullscreen = "true";
+            iframe.frameBorder = 0;
+            iframe.id = "twitchIFrame";
+            
+            const framePlaceholder = document.getElementById("sharedVideoIFrame");
+            framePlaceholder.parentNode.appendChild(iframe);
+
+            self.sharedVideo = new SharedVideoContainer({ url, iframe, player: iframe });
+            this.player = iframe;
+
+            VideoLayout.addLargeVideoContainer(
+                SHARED_VIDEO_CONTAINER_TYPE, self.sharedVideo);
+
+            APP.store.dispatch(participantJoined({
+                // [inane garbage comment]
+                conference: APP.conference._room,
+                id: self.url,
+                isFakeParticipant: true,
+                name: self.url
+            }));
+
+            APP.store.dispatch(pinParticipant(self.url));
+            return;
+        }
+
         // This code loads the IFrame Player API code asynchronously.
         const tag = document.createElement('script');
 
@@ -169,8 +200,6 @@ export default class SharedVideoManager {
         // and will process any initial attributes if any
         this.initialAttributes = attributes;
 
-        const self = this;
-
         if (self.isPlayerAPILoaded) {
             window.onYouTubeIframeAPIReady();
         } else {
@@ -181,7 +210,7 @@ export default class SharedVideoManager {
                 const p = new YT.Player('sharedVideoIFrame', {
                     height: '100%',
                     width: '100%',
-                    videoId: self.url,
+                    videoId: youtubeVideoId,
                     playerVars: {
                         'origin': location.origin,
                         'fs': '0',
@@ -496,11 +525,15 @@ export default class SharedVideoManager {
                     SHARED_VIDEO_CONTAINER_TYPE);
 
                 if (this.player) {
-                    this.player.destroy();
+                    if (this.player.destroy) {
+                        this.player.destroy();
+                    }
                     this.player = null;
                 } else if (this.errorInPlayer) {
                     // if there is an error in player, remove that instance
-                    this.errorInPlayer.destroy();
+                    if (this.errorInPlayer.destroy) {
+                        this.errorInPlayer.destroy();
+                    }
                     this.errorInPlayer = null;
                 }
                 this.smartAudioUnmute();
@@ -508,6 +541,11 @@ export default class SharedVideoManager {
                 // revert to original behavior (prevents pausing
                 // for participants not sharing the video to pause it)
                 $('#sharedVideo').css('pointer-events', 'auto');
+
+                const twitchEmbed = document.getElementById("twitchIFrame");
+                if (twitchEmbed) {
+                    twitchEmbed.remove();
+                }
 
                 this.emitter.emit(
                     UIEvents.UPDATE_SHARED_VIDEO, null, 'removed');
@@ -764,15 +802,7 @@ function requestVideoLink() {
 
                     const urlValue
                         = encodeURI(UIUtil.escapeHtml(sharedVideoUrl));
-                    const yVideoId = getYoutubeLink(urlValue);
-
-                    if (!yVideoId) {
-                        dialog.goToState('state1');
-
-                        return false;
-                    }
-
-                    resolve(yVideoId);
+                    resolve(urlValue);
                     dialog.close();
                 }
             },

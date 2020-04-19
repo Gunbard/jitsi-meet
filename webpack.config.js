@@ -99,8 +99,11 @@ const config = {
             // to be available in such a form by multiple jitsi-meet
             // dependencies including lib-jitsi-meet.
 
-            loader: 'expose-loader?$!expose-loader?jQuery',
-            test: /\/node_modules\/jquery\/.*\.js$/
+            test: require.resolve('jquery'),
+            use: [{
+              loader: 'expose-loader',
+              options: '$'
+            }]
         }, {
             // Allow CSS to be imported into JavaScript.
 

@@ -48,7 +48,7 @@ export default class SharedVideoThumb extends SmallVideo {
         const avatar = document.createElement('img');
 
         avatar.className = 'sharedVideoAvatar';
-        avatar.src = `https://img.youtube.com/vi/${this.url}/0.jpg`;
+        //avatar.src = `https://img.youtube.com/vi/${this.url}/0.jpg`;
         container.appendChild(avatar);
 
         const displayNameContainer = document.createElement('div');
